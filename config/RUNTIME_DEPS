@@ -1,0 +1,14 @@
+file:spring-context:bin\lib
+file:datatable:modules\datatable
+file:webserver-api:modules\webserver
+file:extensionsupport-api:modules\extensionsupport
+file:core:modules\core
+file:core-api:modules\core
+file:common:modules\common
+file:commonexceptions:modules\commonexceptions
+file:commonbaseutils:bin\lib
+file:directaccess:modules\directaccess
+file:directaccess-api:modules\directaccess
+file:commbacnet:bin\lib
+file:commbase:bin\lib
+file:serviceframework:modules\serviceframework

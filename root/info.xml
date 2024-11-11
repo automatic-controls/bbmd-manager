@@ -1,0 +1,6 @@
+<extension version="1">
+  <name>bbmd-manager</name>
+  <description>View and edit BBMD configurations in your system.</description>
+  <version>0.1.0</version>
+  <vendor>Automatic Controls Equipment Systems, Inc.</vendor>
+</extension>

@@ -1,0 +1,449 @@
+<!--
+  BSD 3-Clause License
+  Copyright (c) 2024, Automatic Controls Equipment Systems, Inc.
+  Contributors: Cameron Vogt (@cvogt729)
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>
+      BBMD Manager
+    </title>
+    <link rel="stylesheet" type="text/css" href="../../../../../root/webapp/main.css"/>
+    <script>
+      function registerChange(){
+        if (!changes){
+          changes = true;
+          mainTitle.innerText = "* BBMD Manager *";
+          document.title = mainTitle.innerText;
+        }
+      }
+      function unregisterChange(){
+        if (changes){
+          changes = false;
+          mainTitle.innerText = "BBMD Manager";
+          document.title = mainTitle.innerText;
+        }
+      }
+      function checkSave(){
+        if (changes){
+          alert("Please save changes before continuing.");
+          return false;
+        }else{
+          return true;
+        }
+      }
+      function resize(input){
+        const styles = window.getComputedStyle(input);
+        hiddenSpan.style.fontFamily = styles.fontFamily;
+        hiddenSpan.style.fontSize = styles.fontSize;
+        hiddenSpan.style.fontStyle = styles.fontStyle;
+        hiddenSpan.style.fontWeight = styles.fontWeight;
+        hiddenSpan.style.letterSpacing = styles.letterSpacing;
+        hiddenSpan.style.textTransform = styles.textTransform;
+        hiddenSpan.style.borderLeftWidth = styles.borderLeftWidth;
+        hiddenSpan.style.borderRightWidth = styles.borderRightWidth;
+        hiddenSpan.style.paddingLeft = styles.paddingLeft;
+        hiddenSpan.style.paddingRight = styles.paddingRight;
+        hiddenSpan.innerText = input.value;
+        input.style.width = hiddenSpan.offsetWidth+"px";
+      }
+      function validateInt(field,max){
+        var s = field.value;
+        if (s.length>0){
+          s = s.replaceAll(/\D/g,"");
+          if (s.length>0){
+            if (s.length>15){
+              s = s.substring(0,15);
+            }
+            s = parseInt(s);
+            s = Math.min(s,max);
+            field.value = s.toString();
+          }else{
+            field.value = "";
+          }
+        }
+      }
+      function setStatus(color,text){
+        statusBox.innerText = text;
+        statusBox.style.color = color;
+      }
+      function trigger(){
+        if (checkSave()){
+          triggerButton.disabled = true;
+          const req = new XMLHttpRequest();
+          req.open("POST","__PREFIX__/index?type=trigger");
+          req.setRequestHeader("content-type", "application/x-www-form-urlencoded");
+          req.timeout = 5000;
+          req.onreadystatechange = function(){
+            if (this.readyState===4){
+              if (this.status===200){
+                setStatus("lightgreen","BBMD check triggered.");
+              }else if (this.status==0){
+                setStatus("red","Request timed out.");
+              }else{
+                setStatus("red","HTTP Error "+this.status);
+              }
+              triggerButton.disabled = false;
+            }
+          };
+          setStatus("white","Triggering...");
+          req.send();
+        }
+      }
+      function save(){
+        const saveButton = document.getElementById("saveButton");
+        if (!saveButton.disabled){
+          if (!changes){
+            setStatus("white","No updates were made.");
+            return;
+          }
+          saveButton.disabled = true;
+          const req = new XMLHttpRequest();
+          req.open("POST","__PREFIX__/index?type=save");
+          req.setRequestHeader("content-type", "application/x-www-form-urlencoded");
+          req.timeout = 10000;
+          req.onreadystatechange = function(){
+            if (this.readyState===4){
+              if (this.status===200){
+                parseRefresh(this.responseText);
+              }else if (this.status==0){
+                setStatus("red","Request timed out.");
+              }else{
+                setStatus("red","HTTP Error "+this.status);
+              }
+              saveButton.disabled = false;
+            }
+          };
+          setStatus("white","Saving data...");
+          req.send(
+            "manage="+encodeURIComponent(String(managerCheckbox.checked==true))+
+            "&checkInterval="+encodeURIComponent(checkIntervalField.value)+
+            "&pingTimeout="+encodeURIComponent(pingTimeoutField.value)+
+            "&readRetries="+encodeURIComponent(readRetriesField.value)+
+            "&readTimeout="+encodeURIComponent(readTimeoutField.value)+
+            "&readMaxTime="+encodeURIComponent(readMaxTimeField.value)+
+            "&writeRetries="+encodeURIComponent(writeRetriesField.value)+
+            "&writeTimeout="+encodeURIComponent(writeTimeoutField.value)+
+            "&writeMaxTime="+encodeURIComponent(writeMaxTimeField.value)+
+            "&emailSubject="+encodeURIComponent(emailSubjectField.value)+
+            "&emailRecipients="+encodeURIComponent(emailRecipientsField.value)+
+            "&failsBeforeNotify="+encodeURIComponent(failsBeforeNotifyField.value)+
+            "&groups="+encodeURIComponent(compileGroups())
+          );
+        }
+      }
+      function refresh(all,once){
+        const req = new XMLHttpRequest();
+        req.open("POST","__PREFIX__/index?type=refresh");
+        req.setRequestHeader("content-type", "application/x-www-form-urlencoded");
+        req.timeout = 10000;
+        req.onreadystatechange = function(){
+          if (this.readyState===4){
+            if (this.status===200){
+              parseRefresh(this.responseText);
+            }else if (this.status==0){
+              setStatus("red","Request timed out.");
+            }else{
+              setStatus("red","HTTP Error "+this.status);
+            }
+            if (!once){
+              setTimeout(refresh,30000);
+            }
+          }
+        };
+        if (once){
+          setStatus("white","Refreshing...");
+        }
+        if (all){
+          req.send();
+        }else{
+          req.send("readOnly");
+        }
+      }
+      function parseRefresh(s){
+        try{
+          const data = JSON.parse(s);
+          bbmdStatusBox.innerText = data["bbmdStatus"];
+          bbmdStatusBox.style.color = data["bbmdStatus"]=="Success"?"lightgreen":"red";
+          fdrBox.innerText = data["fdr"];
+          cacheTimeBox.innerText = data["cacheTime"];
+          centerRouterBox.innerText = data["centerRouter"];
+          const warningTable = document.getElementById("warningTable");
+          const warningBody = document.getElementById("warningBody");
+          warningBody.replaceChildren();
+          if (data.warnings.length==0){
+            warningTable.style.display = "none";
+          }else{
+            for (const x of data["warnings"]){
+              const tr = document.createElement("TR");
+              const td = document.createElement("TD");
+              td.innerText = x;
+              tr.appendChild(td);
+              warningBody.appendChild(tr);
+            }
+            warningTable.style.display = "table";
+          }
+          if (data["manage"]!==undefined){
+            unregisterChange();
+            managerCheckbox.checked = data["manage"];
+            checkIntervalField.value = String(data["checkInterval"]);
+            pingTimeoutField.value = String(data["pingTimeout"]);
+            readRetriesField.value = String(data["readRetries"]);
+            readTimeoutField.value = String(data["readTimeout"]);
+            readMaxTimeField.value = String(data["readMaxTime"]);
+            writeRetriesField.value = String(data["writeRetries"]);
+            writeTimeoutField.value = String(data["writeTimeout"]);
+            writeMaxTimeField.value = String(data["writeMaxTime"]);
+            failsBeforeNotifyField.value = String(data["failsBeforeNotify"]);
+            emailSubjectField.value = data["emailSubject"];
+            emailRecipientsField.value = data["emailRecipients"];
+            resize(checkIntervalField);
+            resize(pingTimeoutField);
+            resize(readRetriesField);
+            resize(readTimeoutField);
+            resize(readMaxTimeField);
+            resize(writeRetriesField);
+            resize(writeTimeoutField);
+            resize(writeMaxTimeField);
+            resize(emailSubjectField);
+            resize(failsBeforeNotifyField);
+            resize(emailRecipientsField);
+            document.getElementById("groupBody").replaceChildren();
+            for (const x of data["groups"]){
+              createGroup(x);
+            }
+          }
+          setStatus("lightgreen","Successful.");
+        }catch(e){
+          console.error(e);
+          setStatus("red","Invalid Response");
+        }
+      }
+      function createGroup(names){
+        const groupBody = document.getElementById("groupBody");
+        const tr = document.createElement("TR");
+        const cmdTD = document.createElement("TD");
+        const nameTD = document.createElement("TD");
+        tr.appendChild(cmdTD);
+        tr.appendChild(nameTD);
+        cmdTD.setAttribute("title", "Type a reference name in the field and press ENTER to add it to the group.");
+        nameTD.setAttribute("title", "Click a reference name to remove it from a group. Remove all reference names and save changes to delete a group.");
+        const refNameField = document.createElement("INPUT");
+        cmdTD.appendChild(refNameField);
+        refNameField.setAttribute("type", "text");
+        refNameField.className = "e";
+        refNameField.oninput = ()=>{
+          refNameField.value = refNameField.value.replaceAll(/;/g, "");
+          resize(refNameField);
+        };
+        const addName = (name,color)=>{
+          const btn = document.createElement("BUTTON");
+          btn.className = "e";
+          btn.innerText = name;
+          btn.style.backgroundColor = color;
+          btn.onclick = ()=>{
+            nameTD.removeChild(btn);
+            registerChange();
+          };
+          nameTD.appendChild(btn);
+        };
+        if (names){
+          for (const x of names){
+            addName(x["refname"],x["valid"]?"darkgreen":"darkred");
+          }
+        }
+        refNameField.onkeydown = (e)=>{
+          if (e.key==="Enter"){
+            const s = refNameField.value.replaceAll(/;/g, "");
+            if (s.length>0){
+              addName(s,"transparent");
+              refNameField.value = "";
+              resize(refNameField);
+              registerChange();
+            }
+          }
+        };
+        resize(refNameField);
+        groupBody.appendChild(tr);
+      }
+      function compileGroups(){
+        var s = "";
+        for (const tr of document.getElementById("groupBody").getElementsByTagName("TR")){
+          const buttons = tr.getElementsByTagName("BUTTON");
+          s+=String(buttons.length);
+          s+=";"
+          for (const btn of buttons){
+            s+=btn.innerText.replaceAll(/;/g, "");
+            s+=";";
+          }
+        }
+        return s;
+      }
+    </script>
+  </head>
+  <body>
+    <div style="text-align:center">
+      <h1 id="mainTitle">BBMD Manager</h1>
+      <div class="divGrouping">
+        <label for="statusBox">Webpage Status:</label>
+        <span id="statusBox">Refreshing...</span>
+      </div>
+      <br><br>
+      <div class="row">
+        <div class="column">
+          <table style="float:right;margin-right:1em">
+            <thead>
+              <tr>
+                <th colspan="2">
+                  Configuration Parameters
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="2" title="Whether the WebCTRL database should be modified to enforce BBMD standards.">
+                  <label for="managerCheckbox" style="vertical-align:middle">Enforce BBMD Management:</label>
+                  <input type="checkbox" id="managerCheckbox" oninput="registerChange()" style="width:1.3em;height:1.3em;vertical-align:middle">
+                </td>
+              </tr>
+              <tr>
+                <td title="Whether the previous BBMD check was able to successfully gather and analyze the required data.">
+                  <label for="bbmdStatusBox">Last Check:</label>
+                  <span id="bbmdStatusBox"></span>
+                </td>
+                <td title="The timestamp as recorded at the end of the previous BBMD check.">
+                  <label for="cacheTimeBox">Timestamp:</label>
+                  <span id="cacheTimeBox"></span>
+                </td>
+              </tr>
+              <tr>
+                <td title="Specifies how often to perform a BBMD check.">
+                  <label for="checkIntervalField">Check Interval:</label>
+                  <input class="c" type="text" id="checkIntervalField" oninput="validateInt(this,3600000);resize(this);registerChange()">
+                  <span>ms</span>
+                </td>
+                <td title="Whether the WebCTRL server is registered as a foreign device.">
+                  <label for="fdrBox">FDR:</label>
+                  <span id="fdrBox"></span>
+                </td>
+              </tr>
+              <tr>
+                <td title="Specifies the timeout to wait for a response when pinging routers.">
+                  <label for="pingTimeoutField">Ping Timeout:</label>
+                  <input class="c" type="text" id="pingTimeoutField" oninput="validateInt(this,10000);resize(this);registerChange()">
+                  <span>ms</span>
+                </td>
+                <td title="The router which all broadcast traffic to-and-from the WebCTRL server is hopped through.">
+                  <span id="centerRouterBox"></span>
+                </td>
+              </tr>
+              <tr>
+                <td title="Specifies how many attempts are made to read from the database">
+                  <label for="readRetriesField">Read Retries:</label>
+                  <input class="c" type="text" id="readRetriesField" oninput="validateInt(this,20);resize(this);registerChange()">
+                </td>
+                <td title="Specifies how many attempts are made to write from the database">
+                  <label for="writeRetriesField">Write Retries:</label>
+                  <input class="c" type="text" id="writeRetriesField" oninput="validateInt(this,20);resize(this);registerChange()">
+                </td>
+              </tr>
+              <tr>
+                <td title="After a database read attempt fails, this timeout is enforced before trying again">
+                  <label for="readTimeoutField">Read Timeout:</label>
+                  <input class="c" type="text" id="readTimeoutField" oninput="validateInt(this,5000);resize(this);registerChange()">
+                  <span>ms</span>
+                </td>
+                <td title="After a database write attempt fails, this timeout is enforced before trying again">
+                  <label for="writeTimeoutField">Write Timeout:</label>
+                  <input class="c" type="text" id="writeTimeoutField" oninput="validateInt(this,5000);resize(this);registerChange()">
+                  <span>ms</span>
+                </td>
+              </tr>
+              <tr>
+                <td title="Specifies the maximum allowed time for a database read operation">
+                  <label for="readMaxTimeField">Read Max Time:</label>
+                  <input class="c" type="text" id="readMaxTimeField" oninput="validateInt(this,300000);resize(this);registerChange()">
+                  <span>ms</span>
+                </td>
+                <td title="Specifies the maximum allowed time for a database write operation">
+                  <label for="writeMaxTimeField">Write Max Time:</label>
+                  <input class="c" type="text" id="writeMaxTimeField" oninput="validateInt(this,300000);resize(this);registerChange()">
+                  <span>ms</span>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" title="Email subject when an invalid BBMD configuration has been detected. Leave this blank to disable notifications.">
+                  <label for="emailSubjectField">Email Subject:</label>
+                  <input class="c" type="text" id="emailSubjectField" oninput="resize(this);registerChange()">
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" title="Semi-colon delimited list of recipient email addresses for notifications. Leave this blank to disable notifications.">
+                  <label for="emailRecipientsField">Email Recipients:</label>
+                  <input class="c" type="text" id="emailRecipientsField" oninput="resize(this);registerChange()">
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" title="Specifies how many consecutive BBMD configuration failures are required before sending an email notifications.">
+                  <label for="failsBeforeNotifyField">Failures Before Email:</label>
+                  <input class="c" type="text" id="failsBeforeNotifyField" oninput="validateInt(this,1024);resize(this);registerChange()">
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="column">
+          <table style="float:left;margin-left:1em">
+            <thead title="Each row in this table represents one group. Each group is a collection of reference names of routers on the network tree. Routers within a group are permitted to communicate with each other.">
+              <tr><th colspan="2">Broadcast Groups</th></tr>
+              <tr>
+                <td><button class="e" onclick="createGroup()">Create Group</button></td>
+                <th>Reference Names</th>
+              </tr>
+            </thead>
+            <tbody id="groupBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <br>
+      <button class="e" id="refreshButton" onclick="refresh(false,true)">Refresh</button>
+      <button class="e" id="saveButton" onclick="save()">Save Changes</button>
+      <button class="e" onclick="refresh(true,true)">Discard Changes</button>
+      <button class="e" id="triggerButton" onclick="trigger()">Trigger BBMD Check</button>
+      <br><br>
+      <a class="e" href="__PREFIX__/status" target="_blank">Export JSON</a>
+      <a class="e" href="__DOCUMENTATION__" target="_blank">Documentation</a>
+      <br><br>
+      <table id="warningTable" style="display:none">
+        <thead>
+          <tr><th>Warnings</th></tr>
+        </thead>
+        <tbody id="warningBody"></tbody>
+      </table>
+      <span id="hiddenSpan" style="min-width:2.5em;color:black;display:inline-block;position:absolute;left:-100000px;white-space:pre"></span>
+    </div>
+    <script>
+      var changes;
+      var prompt = true;
+      resize(checkIntervalField);
+      resize(pingTimeoutField);
+      resize(readRetriesField);
+      resize(readTimeoutField);
+      resize(readMaxTimeField);
+      resize(writeRetriesField);
+      resize(writeTimeoutField);
+      resize(writeMaxTimeField);
+      resize(emailSubjectField);
+      resize(failsBeforeNotifyField);
+      resize(emailRecipientsField);
+      unregisterChange();
+      window.onbeforeunload = ()=>{
+        if (prompt && changes){
+          return "Changes remain unsaved. Are you sure you want to leave?";
+        }
+      };
+      refresh(true,false);
+    </script>
+  </body>
+</html>
