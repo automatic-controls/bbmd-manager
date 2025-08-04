@@ -3,6 +3,7 @@ import javax.servlet.*;
 import java.nio.file.*;
 import com.controlj.green.addonsupport.*;
 import com.controlj.green.core.main.*;
+import com.controlj.green.common.CJProductDirectories;
 public class Initializer implements ServletContextListener {
   /** Contains basic information about this addon */
   public volatile static AddOnInfo info = null;
@@ -21,7 +22,7 @@ public class Initializer implements ServletContextListener {
   /** Whether to stop the primary thread */
   private volatile boolean stop = false;
   /** Specifies how often to run the BBMD checker */
-  public static volatile long checkInterval = 60000L;
+  public static volatile long checkInterval = 300000L;
   /** Overrides checkInterval in some specific cases */
   public static volatile long checkIntervalOverride = -1;
   /** Whether to manage BBMDs */
@@ -32,6 +33,10 @@ public class Initializer implements ServletContextListener {
   private static volatile boolean goNow = false;
   /** Whether the last Fixer completed successfully */
   public static volatile boolean lastStatus = true;
+  /** List of patch classes to apply */
+  private static volatile String[] patches;
+  /** Where patches live */
+  private static volatile Path patchDir;
   /**
    * Entry point of this add-on.
    */
@@ -41,6 +46,33 @@ public class Initializer implements ServletContextListener {
     prefix = '/'+name+'/';
     root = info.getPrivateDir().toPath();
     logger = info.getDateStampLogger();
+    try{
+      patches = new String[]{
+        "Autobbmd"
+      };
+      patchDir = CJProductDirectories.getBaseDir().toPath()
+        .resolve("modules")
+        .resolve("manualcommands")
+        .resolve("classes")
+        .resolve("main")
+        .resolve("com")
+        .resolve("controlj")
+        .resolve("green")
+        .resolve("core")
+        .resolve("process")
+        .resolve("executable");
+      if (!Files.exists(patchDir)){
+        Files.createDirectories(patchDir);
+      }
+      for (String s: patches){
+        Utility.extractResource("aces/webctrl/bbmd/resources/" + s + ".dat", patchDir.resolve(s + ".class"));
+      }
+      Class.forName("com.controlj.green.core.process.executable.Autobbmd");
+    }catch(ClassNotFoundException e){
+      logger.println("Please reboot the server to complete patch installation.");
+    }catch(Throwable t){
+      Initializer.log(t);
+    }
     SavedData.init(root.resolve("params.dat"));
     mainThread = new Thread(){
       public void run(){
@@ -115,6 +147,13 @@ public class Initializer implements ServletContextListener {
     stop = true;
     SavedData.saveData();
     trigger();
+    try{
+      for (String s: patches){
+        Files.deleteIfExists(patchDir.resolve(s + ".class"));
+      }
+    }catch(Throwable t){
+      Initializer.log(t);
+    }
     if (running){
       try{
         mainThread.interrupt();

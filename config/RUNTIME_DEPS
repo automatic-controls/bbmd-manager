@@ -12,3 +12,5 @@ file:directaccess-api:modules\directaccess
 file:commbacnet:bin\lib
 file:commbase:bin\lib
 file:serviceframework:modules\serviceframework
+file:cjtrace:bin\lib
+file:manualcommands:modules\manualcommands

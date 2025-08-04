@@ -137,7 +137,7 @@
         const req = new XMLHttpRequest();
         req.open("POST","__PREFIX__/index?type=refresh");
         req.setRequestHeader("content-type", "application/x-www-form-urlencoded");
-        req.timeout = 10000;
+        req.timeout = 60000;
         req.onreadystatechange = function(){
           if (this.readyState===4){
             if (this.status===200){

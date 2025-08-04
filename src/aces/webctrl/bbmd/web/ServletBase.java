@@ -51,7 +51,7 @@ public abstract class ServletBase extends HttpServlet {
     if (html==null){
       html = Utility.loadResourceAsString("aces/webctrl/bbmd/resources/"+getClass().getSimpleName()+".html")
       .replace("href=\"../../../../../root/webapp/main.css\"", "href=\"main.css\"")
-      .replace("__DOCUMENTATION__", "documentation.html");
+      .replace("__DOCUMENTATION__", "https://github.com/automatic-controls/bbmd-manager/");
     }
     return html.replace("__PREFIX__", req.getContextPath());
   }

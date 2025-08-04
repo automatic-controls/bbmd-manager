@@ -13,7 +13,7 @@ public class Router implements AutoCloseable {
     }
   };
   private final static boolean INCLUDE_THIRD_PARTY = false;
-  public volatile static int pingTimeout = 3000;
+  public volatile static int pingTimeout = 4000;
   private volatile DatabaseLink dl;
   public volatile CoreHWDevice node;
   private volatile long dbid;
