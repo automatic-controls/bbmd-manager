@@ -151,8 +151,8 @@ public class DatabaseLink implements AutoCloseable {
           }
         }
         if (x==5){
-          cp.ipAddressBits = Utility.getAddressBits(cp.ipAddress);
-          cp.subnetMaskBits = Utility.getAddressBits(cp.subnetMask);
+          cp.ipAddressBits = Utility.getAddressBits(cp.ipAddress,null);
+          cp.subnetMaskBits = Utility.getAddressBits(cp.subnetMask,null);
           if (cp.ipAddressBits==0){
             cp.ipAddress = "0.0.0.0";
           }

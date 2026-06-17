@@ -42,6 +42,10 @@ public class Fixer {
       groups = null;
     }
     final TreeMap<Integer,Set<Integer>> changes = new TreeMap<Integer,Set<Integer>>(Router.UNSIGNED);
+    final TreeMap<Integer,Integer> portMap = new TreeMap<Integer,Integer>(Router.UNSIGNED);
+    for (Router r: rs){
+      portMap.put(r.ipAddressBits, r.port);
+    }
     boolean disableAuto = false;
     {
       Set<Integer> bbmds = new TreeSet<Integer>();
@@ -218,7 +222,7 @@ public class Fixer {
           if (r!=null && r.isOpen()){
             for (i=1;i<=retries;++i){
               try{
-                r.writeBDT(x.getValue());
+                r.writeBDT(x.getValue(), portMap);
                 break;
               }catch(Throwable t){
                 if (retries>1 && System.currentTimeMillis()>lim){

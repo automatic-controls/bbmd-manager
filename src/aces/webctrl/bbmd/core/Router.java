@@ -27,8 +27,10 @@ public class Router implements AutoCloseable {
   public volatile String currentDriver = null;
   public volatile String latestDriver = null;
   public volatile int ipAddressBits;
+  public volatile int port;
   public volatile int subnetMaskBits;
   public volatile int defaultGatewayBits;
+  public volatile int networkNumber;
   public volatile boolean disabled;
   public volatile boolean autoConfigure;
   public volatile boolean autoBBMD;
@@ -45,10 +47,23 @@ public class Router implements AutoCloseable {
       dl.addResource(this);
     }
   }
+  private static int getNetworkNumber(CoreHWDevice node){
+    CoreNode p = node.getParent();
+    if (p instanceof CoreNetwork){
+      return ((CoreNetwork)p).getNetworkNumber();
+    }else{
+      return 0;
+    }
+  }
   public void readParams(){
     referenceName = node.getReferenceName();
     ipAddress = node.getMacAddress();
-    ipAddressBits = Utility.getAddressBits(ipAddress);
+    {
+      final Container<Integer> portContainer = new Container<Integer>();
+      ipAddressBits = Utility.getAddressBits(ipAddress, portContainer);
+      port = portContainer.x;
+    }
+    networkNumber = getNetworkNumber(node);
     disabled = node.getBooleanAttribute(CoreNodeConstants.DISABLED, false);
     modelName = node.getAttribute(CoreNodeConstants.MODEL_NAME);
     displayName = node.getDisplayName();
@@ -60,8 +75,8 @@ public class Router implements AutoCloseable {
     subnetMask = node.getAttribute(CoreNodeConstants.SUBNET_MASK);
     autoConfigure = node.getBooleanAttribute(CoreNodeConstants.AUTO_IP_CONFIG, false);
     autoBBMD = node.getBooleanAttribute(CoreNodeConstants.BBMD_ROUTER, false);
-    defaultGatewayBits = Utility.getAddressBits(defaultGateway);
-    subnetMaskBits = Utility.getAddressBits(subnetMask);
+    defaultGatewayBits = Utility.getAddressBits(defaultGateway,null);
+    subnetMaskBits = Utility.getAddressBits(subnetMask,null);
     if (defaultGatewayBits==0){
       defaultGateway = "0.0.0.0";
     }
@@ -91,7 +106,7 @@ public class Router implements AutoCloseable {
    * Reads a broadcast distribution table (BDT) from this router.
    * @return {@code true} on success; {@code false} if there is no active {@link DatabaseLink}, or if this router is a third-party device.
    */
-  public boolean readBDT() throws ConnectionException, CommException {
+  public boolean readBDT() throws ConnectionException, CommException, CoreNotFoundException {
     if (dl==null){
       return false;
     }
@@ -100,7 +115,13 @@ public class Router implements AutoCloseable {
       return false;
     }
     final BBMDHelper helper = dl.getBBMDHelper(node);
-    final List<BroadcastDistributionEntry> list = helper.readBBMDTable(Utility.getBACnetAddress(ipAddressBits));
+    List<BroadcastDistributionEntry> list;
+    if (helper.isTunnelingRequired(node)){
+      final CoreBACnetHWDevice tun = helper.findTunnelDevice(node);
+      list = helper.readBBMDTable(Utility.getBACnetAddress(ipAddressBits,port,networkNumber), Utility.getBACnetAddress(tun.getMacAddress(),getNetworkNumber(tun)));
+    }else{
+      list = helper.readBBMDTable(Utility.getBACnetAddress(ipAddressBits,port,networkNumber));
+    }
     bdt = new TreeSet<Integer>(UNSIGNED);
     int x;
     for (final BroadcastDistributionEntry bde: list){
@@ -116,15 +137,15 @@ public class Router implements AutoCloseable {
    * Writes a broadcast distribution table (BDT) to this router.
    * @return {@code true} on success; {@code false} if there is no active {@link DatabaseLink}, or if this router has been set for automatic BBMD configuration, or if this router is a third-party device.
    */
-  public boolean writeBDT(Set<Integer> bdt) throws ConnectionException, CommException {
+  public boolean writeBDT(Set<Integer> bdt, Map<Integer,Integer> portMap) throws ConnectionException, CommException {
     if (dl==null || autoConfigure || modelName==null || disabled){
       return false;
     }
     final ArrayList<BroadcastDistributionEntry> list = new ArrayList<BroadcastDistributionEntry>(bdt.size());
     for (Integer x: bdt){
-      list.add(Utility.getBDE(x));
+      list.add(Utility.getBDE(x, portMap.getOrDefault(x, 47808)));
     }
-    dl.getBBMDHelper(node).writeBBMDTableToAddress(Utility.getBACnetAddress(ipAddressBits), list);
+    dl.getBBMDHelper(node).writeBBMDTableToAddress(Utility.getBACnetAddress(ipAddressBits,port,networkNumber), list);
     return true;
   }
   /**
@@ -132,7 +153,7 @@ public class Router implements AutoCloseable {
    * @return {@code true} on success; {@code false} if there is no active {@link DatabaseLink}, or if this router has been set for automatic BBMD configuration, or if this router is a third-party device.
    */
   public boolean clearBDT() throws ConnectionException, CommException {
-    return writeBDT(Collections.emptySet());
+    return writeBDT(Collections.emptySet(), Collections.emptyMap());
   }
   public boolean open(DatabaseLink dl) throws CoreNotFoundException {
     CoreNode n = dl.getNode(dbid);
@@ -161,6 +182,7 @@ public class Router implements AutoCloseable {
     sb.append(indent).append("  \"ipAddress\": \"").append(ipAddress).append("\",\n");
     sb.append(indent).append("  \"subnetMask\": \"").append(subnetMask).append("\",\n");
     sb.append(indent).append("  \"defaultGateway\": \"").append(defaultGateway).append("\",\n");
+    sb.append(indent).append("  \"networkNumber\": \"").append(networkNumber).append("\",\n");
     if (currentDriver!=null){
       sb.append(indent).append("  \"currentDriver\": \"").append(Utility.escapeJSON(currentDriver)).append("\",\n");
     }

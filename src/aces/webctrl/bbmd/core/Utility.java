@@ -8,7 +8,7 @@ import java.time.*;
 import java.time.format.*;
 public class Utility {
   public final static DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
-  public final static Pattern IPV4_PATTERN = Pattern.compile("^(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)$");
+  public final static Pattern IPV4_PATTERN = Pattern.compile("^(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)(?::(\\d++))?$");
   private final static Pattern LINE_ENDING = Pattern.compile("\\r?+\\n");
   private final static Pattern SUBST_FORMATTER = Pattern.compile("\\$(\\d)");
   public static boolean disjointOrEqualSubnets(int ipAddress1, int subnetMask1, int ipAddress2, int subnetMask2){
@@ -32,7 +32,7 @@ public class Utility {
     }
     return true;
   }
-  public static BACnetAddress getBACnetAddress(String ipv4){
+  public static BACnetAddress getBACnetAddress(String ipv4, int net){
     if (ipv4==null){
       return null;
     }
@@ -43,9 +43,16 @@ public class Utility {
       mac[1] = (byte)Integer.parseInt(m.group(2));
       mac[2] = (byte)Integer.parseInt(m.group(3));
       mac[3] = (byte)Integer.parseInt(m.group(4));
-      mac[4] = (byte)(47808 >> 8);
-      mac[5] = (byte)(47808 & 0xFF);
-      return new BACnetAddress(0, mac, BBMDHelper.bbmdMask);
+      final String _port = m.group(5);
+      if (_port==null){
+        mac[4] = (byte)(47808 >> 8);
+        mac[5] = (byte)(47808 & 0xFF);
+      }else{
+        final int port = Integer.parseInt(_port);
+        mac[4] = (byte)(port >> 8);
+        mac[5] = (byte)(port & 0xFF);
+      }
+      return new BACnetAddress(net, mac, BBMDHelper.bbmdMask);
     }else{
       return null;
     }
@@ -58,24 +65,24 @@ public class Utility {
     mac[3] = (byte)(addressBits&0xFF);
     return mac;
   }
-  public static BACnetAddress getBACnetAddress(int addressBits){
+  public static BACnetAddress getBACnetAddress(int addressBits, int port, int net){
     byte[] mac = new byte[6];
     mac[0] = (byte)((addressBits>>24)&0xFF);
     mac[1] = (byte)((addressBits>>16)&0xFF);
     mac[2] = (byte)((addressBits>>8)&0xFF);
     mac[3] = (byte)(addressBits&0xFF);
-    mac[4] = (byte)(47808>>8);
-    mac[5] = (byte)(47808&0xFF);
-    return new BACnetAddress(0, mac, BBMDHelper.bbmdMask);
+    mac[4] = (byte)(port>>8);
+    mac[5] = (byte)(port&0xFF);
+    return new BACnetAddress(net, mac, BBMDHelper.bbmdMask);
   }
-  public static BroadcastDistributionEntry getBDE(int addressBits){
+  public static BroadcastDistributionEntry getBDE(int addressBits, int port){
     byte[] mac = new byte[6];
     mac[0] = (byte)((addressBits>>24)&0xFF);
     mac[1] = (byte)((addressBits>>16)&0xFF);
     mac[2] = (byte)((addressBits>>8)&0xFF);
     mac[3] = (byte)(addressBits&0xFF);
-    mac[4] = (byte)(47808>>8);
-    mac[5] = (byte)(47808&0xFF);
+    mac[4] = (byte)(port>>8);
+    mac[5] = (byte)(port&0xFF);
     return new BroadcastDistributionEntry("", mac, BBMDHelper.bbmdMask);
   }
   public static String getIPv4(byte[] mac){
@@ -98,7 +105,7 @@ public class Utility {
     }
     return ((mac[0]&0xFF)<<24)|((mac[1]&0xFF)<<16)|((mac[2]&0xFF)<<8)|(mac[3]&0xFF);
   }
-  public static int getAddressBits(String ipv4){
+  public static int getAddressBits(String ipv4, Container<Integer> port){
     if (ipv4==null){
       return 0;
     }
@@ -108,6 +115,14 @@ public class Utility {
       final int g2 = Integer.parseInt(m.group(2));
       final int g3 = Integer.parseInt(m.group(3));
       final int g4 = Integer.parseInt(m.group(4));
+      if (port!=null){
+        final String _port = m.group(5);
+        if (_port==null){
+          port.x = 47808;
+        }else{
+          port.x = Integer.parseInt(_port);
+        }
+      }
       return (g1<<24)|(g2<<16)|(g3<<8)|g4;
     }else{
       return 0;
