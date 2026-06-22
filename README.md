@@ -18,6 +18,7 @@ When activated, this add-on unchecks all the automatic BBMD configuration boxes.
 - There must be exactly one active BACnet/IP connection, and the server IP address and subnet mask must be populated correctly in the connection details.
 - Every top-level IP subnet must have at least one BBMD-capable Automated Logic BACnet/IP router. Subnets consisting of only of third-party routers are not permitted.
 - The WebCTRL server should either use FDR or have a router in its own subnet (either option will work). However, secondary FDR failover BBMDs are not *directly* supported.
+- All routers should have a reference name prefixed with `#`.
 
 This add-on also adds a manual command `autobbmd` to WebCTRL. This command can be used to check or uncheck the *Automatically Configure My BBMDs* option without requiring the user to open SiteBuilder. You may need to restart your WebCTRL server after installing this add-on for the `autobbmd` command to work.
 

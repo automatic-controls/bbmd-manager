@@ -125,6 +125,9 @@ public class Utility {
       }
       return (g1<<24)|(g2<<16)|(g3<<8)|g4;
     }else{
+      if (port!=null){
+        port.x = 47808;
+      }
       return 0;
     }
   }
