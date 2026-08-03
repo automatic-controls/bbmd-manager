@@ -21,12 +21,16 @@ public class MainPage extends ServletBase {
     }
     return x;
   }
-  @Override public void exec(final HttpServletRequest req, final HttpServletResponse res) throws Throwable {
+  @Override public void exec(final HttpServletRequest req, final HttpServletResponse res, final boolean post) throws Throwable {
     final String type = req.getParameter("type");
     if (type==null){
       res.setContentType("text/html");
       res.getWriter().print(getHTML(req));
     }else{
+      if (!post){
+        res.setStatus(405);
+        return;
+      }
       switch(type){
         case "trigger":{
           Initializer.trigger();

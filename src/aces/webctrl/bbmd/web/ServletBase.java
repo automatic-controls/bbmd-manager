@@ -7,7 +7,7 @@ import java.io.*;
 public abstract class ServletBase extends HttpServlet {
   private volatile String html = null;
   public void load() throws Throwable {}
-  public abstract void exec(HttpServletRequest req, HttpServletResponse res) throws Throwable;
+  public abstract void exec(HttpServletRequest req, HttpServletResponse res, boolean post) throws Throwable;
   @Override public void init() throws ServletException {
     try{
       load();
@@ -21,14 +21,17 @@ public abstract class ServletBase extends HttpServlet {
     }
   }
   @Override public void doGet(final HttpServletRequest req, final HttpServletResponse res) throws ServletException, IOException {
-    doPost(req,res);
+    func(req,res,false);
   }
   @Override public void doPost(final HttpServletRequest req, final HttpServletResponse res) throws ServletException, IOException {
+    func(req,res,true);
+  }
+  public void func(final HttpServletRequest req, final HttpServletResponse res, final boolean post) throws ServletException, IOException {
     try{
       req.setCharacterEncoding("UTF-8");
       res.setCharacterEncoding("UTF-8");
       res.addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      exec(req,res);
+      exec(req,res,post);
     }catch(NumberFormatException e){
       Initializer.log(e);
       res.sendError(400, "Failed to parse number from string.");
